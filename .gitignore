@@ -1,0 +1,18 @@
+﻿################################################################################
+# 此 .gitignore 文件已由 Microsoft(R) Visual Studio 自动创建。
+################################################################################
+
+/.vs
+/source/VNC/.vs
+/source/VNC/VNC/bin
+/source/VNC/VNC/obj
+/source/VNC/VNCService/bin
+/source/VNC/VNCService/obj
+*.user
+/source/VNC/.vscode
+/source/VNC_CPP/.idea
+/source/VNC_CPP/.vs
+/source/VNC_CPP/.vscode
+/source/VNC_CPP/cmake-build-debug
+/source/VNC_CPP/out/build/x64-debug
+/source/VNC_CPP/CMakePresets.json
