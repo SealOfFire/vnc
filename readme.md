@@ -11,6 +11,7 @@ C# 部分代码参考了 https://github.com/T1T4N/NVNC
 |4|KeyEvent|
 |5|PointerEvent|
 |6|ClientCutText|
+
 这几个必须实现的协议  
 图像使用Raw Encoding编码  
 
