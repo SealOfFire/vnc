@@ -30,6 +30,8 @@ socket通信使用的boost/asio
 日志使用的boost/log  
 windows上图像处理使用的GDI，键盘鼠标操作使用的winpai的WinUser.h中方法，和C#版实际上使用的是相同的方式。  
 ubuntu版使用的图像处理使用的xlib（需要ubuntu启动时选择xorg）。键盘鼠标操作也是xlib。
+des加密使用 https://www.cryptopp.com/ https://github.com/abdes/cryptopp-cmake
+
 
 支持UltraVNC view和UltraVNC Repeater
 
