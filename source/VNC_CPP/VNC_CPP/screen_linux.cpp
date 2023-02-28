@@ -3,11 +3,7 @@
 // https://stackoverflow.com/questions/42013047/difference-between-xtestfakebuttonevent-xsendevent
 #pragma once
 
-#include <X11/Xlib.h>
-#include <X11/X.h>
-#include <X11/keysym.h>
-#include <X11/extensions/XTest.h>
-#include "logger.h"
+#include "screen_linux.h"
 
 // TODO 没有删除
 Display* display = XOpenDisplay(NULL);
