@@ -63,15 +63,11 @@ list(APPEND source python.cpp)
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
 	list(APPEND source screen_linux.h)
 	list(APPEND source screen_linux.cpp)
-		add_definitions(-DLINUX)
-	#linux上打包去掉开头的lib
-	set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
+	add_definitions(-DLINUX)
 elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
 	list(APPEND source screen_win.h)
 	list(APPEND source screen_win.cpp)
 	add_definitions(-DWIN)
-	# 设置win上打包的后缀名
-	set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".pyd")
 endif()
 
 # 打包成exe
@@ -83,7 +79,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET VNC_CPP PROPERTY CXX_STANDARD 20)
 endif()
 
-target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES})
+target_link_libraries(VNC_CPP ${Boost_LIBRARIES})
 
 #add_library(CryptoPP D:/MyProgram/cryptopp870/x64/DLL_Output/Release/cryptopp.dll)
 #set_target_properties(CryptoPP PROPERTIES LINKER_LANGUAGE C)
@@ -102,9 +98,15 @@ target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES})
 
 #option(CRYPTOPP_SOURCES "" D:/MyProgram/cryptopp870)
 add_subdirectory(cryptopp-cmake)
-target_link_libraries(${PROJECT_NAME} cryptopp)
+target_link_libraries(VNC_CPP cryptopp)
 
 #python 打包配置
-set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".pyd")
-target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+	# linux上打包去掉开头的lib
+	set_target_properties(VNC_CPP PROPERTIES PREFIX "")
+elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
+	# 设置win上打包的后缀名
+	set_target_properties(VNC_CPP PROPERTIES SUFFIX ".pyd")
+endif()
+target_link_libraries(VNC_CPP ${PYTHON_LIBRARIES})
 #target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES}/python39.lib)
