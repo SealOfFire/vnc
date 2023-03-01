@@ -13,17 +13,17 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
 	# win上打包时候使用动态链接库
 	set(Boost_USE_STATIC_LIBS ON)
+	# cryptopp源码保存路径
+	set(CRYPTOPP_SOURCES D:/MyProgram/cryptopp870)
+elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+	# cryptopp源码保存路径
+	set(CRYPTOPP_SOURCES /home/xus/cryptopp870)
 endif()
 
 find_package(Boost COMPONENTS regex log_setup log python39)
 #find_package(OpenSSL REQUIRED)
 
-
-#linux编译时修改未linux的cryptopp源码保存路径
-set(CRYPTOPP_SOURCES D:/MyProgram/cryptopp870)
 include_directories(${CRYPTOPP_SOURCES})
-#link_directories(D:/MyProgram/cryptopp870/x64/DLL_Output/Release)
-#add_executable(CryptoPP ../test/test.cpp ../include/fillingCloseCurve.h)
 
 #find_package(PythonLibs 3.10 REQUIRED)
 #include_directories(${PYTHON_INCLUDE_DIRS})
