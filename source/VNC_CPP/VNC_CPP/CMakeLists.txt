@@ -2,17 +2,17 @@
 # 项目特定的逻辑。
 #
 
-##python环境
-##set(${boost_python_DIR} D:/ProgramData/Anaconda3)
-#find_package(PythonLibs 3.9 REQUIRED)
-#message(Python\ version: ${PYTHONLIBS_VERSION_STRING})
-#message(Python\ includes: ${PYTHON_INCLUDE_DIRS})
-#message(Python\ libs: ${PYTHON_LIBRARIES})
-#include_directories(${PYTHON_INCLUDE_DIRS})
-##link_directories(${PYTHON_LIBRARIES})
-##target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+#python环境
+find_package(PythonLibs 3.9 REQUIRED)
+message(Python\ version: ${PYTHONLIBS_VERSION_STRING})
+message(Python\ includes: ${PYTHON_INCLUDE_DIRS})
+message(Python\ libs: ${PYTHON_LIBRARIES})
+include_directories(${PYTHON_INCLUDE_DIRS})
+#add_definitions(-DBOOST_PYTHON_STATIC_LIB)
+# 打包python的时候使用静态连接
+set(Boost_USE_STATIC_LIBS ON)
 
-find_package(Boost COMPONENTS regex log_setup log)
+find_package(Boost COMPONENTS regex log_setup log python39)
 #find_package(OpenSSL REQUIRED)
 
 
@@ -48,16 +48,27 @@ endif()
 
 
 # 将源代码添加到此项目的可执行文件。
-#add_executable (VNC_CPP "VNC_CPP.cpp" "VNC_CPP.h" "VNCService.h" "PixelFormat.h")
-#add_executable (VNC_CPP "VNC_CPP.cpp" "PixelFormat.h" "logger.h" "screen_win.cpp")
+list(APPEND source VNC_CPP.cpp)
+list(APPEND source logger.h)
+list(APPEND source logger.cpp)
+list(APPEND source Common.h)
+list(APPEND source PixelFormat.h)
+list(APPEND source VNCService.h)
+list(APPEND source VNCService.cpp)
+list(APPEND source template.hpp)
+list(APPEND source python.cpp)
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
-	add_executable (VNC_CPP VNC_CPP.cpp logger.h logger.cpp Common.h PixelFormat.h VNCService.h VNCService.cpp template.hpp screen_linux.h screen_linux.cpp)
-	#add_library (VNC_CPP SHARED logger.h logger.cpp Common.h PixelFormat.h VNCService.h VNCService.cpp template.hpp screen_linux.h screen_linux.cpp python.cpp)
+	list(APPEND source screen_linux.h)
+	list(APPEND source screen_linux.cpp)
 elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
-	add_executable (VNC_CPP VNC_CPP.cpp logger.h logger.cpp Common.h PixelFormat.h VNCService.h VNCService.cpp template.hpp screen_win.h screen_win.cpp)
-	#add_library (VNC_CPP SHARED logger.h logger.cpp Common.h PixelFormat.h VNCService.h VNCService.cpp template.hpp screen_win.h screen_win.cpp python.cpp)
+	list(APPEND source screen_win.h)
+	list(APPEND source screen_win.cpp)
 endif()
 
+# 打包成exe
+#add_executable (VNC_CPP ${source})
+# 打包成python模块
+add_library(VNC_CPP MODULE ${source})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET VNC_CPP PROPERTY CXX_STANDARD 20)
@@ -82,8 +93,9 @@ target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES})
 
 #option(CRYPTOPP_SOURCES "" D:/MyProgram/cryptopp870)
 add_subdirectory(cryptopp-cmake)
-
 target_link_libraries(${PROJECT_NAME} cryptopp)
 
-#
-#target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+#python 打包配置
+set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".pyd")
+target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+#target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES}/python39.lib)

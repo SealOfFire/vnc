@@ -14,8 +14,8 @@ project ("VNC_CPP")
 #find_package(Boost 1.74.0 REQUIRED COMPONENTS regex)
 #find_package(Boost 1.81.0 REQUIRED COMPONENTS system thread)
 
-#include_directories(${Boost_INCLUDE_DIRS})
-#link_directories(${Boost_LIBRARY_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
 
 #message(Boost\ version: ${Boost_VERSION_STRING})
 #message(Boost\ include\ dir: ${Boost_INCLUDE_DIRS})
