@@ -1,7 +1,10 @@
 /**
  * 导出给python
  */
-#define BOOST_PYTHON_STATIC_LIB
+#ifdef WIN
+    #define BOOST_PYTHON_STATIC_LIB
+#endif
+
 #include <boost/python.hpp>
 //#include <boost/python/module.hpp>
 #include "VNCService.h"

@@ -18,9 +18,7 @@
 
 // 图像处理和键鼠处理
 #ifdef WIN
-
 #include "screen_win.h"
-
 #endif
 #ifdef LINUX
 #include "screen_linux.h"

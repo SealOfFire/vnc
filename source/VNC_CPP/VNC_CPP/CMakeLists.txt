@@ -10,7 +10,10 @@ message(Python\ libs: ${PYTHON_LIBRARIES})
 include_directories(${PYTHON_INCLUDE_DIRS})
 #add_definitions(-DBOOST_PYTHON_STATIC_LIB)
 # 打包python的时候使用静态连接
-set(Boost_USE_STATIC_LIBS ON)
+if(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
+	# win上打包时候使用动态链接库
+	set(Boost_USE_STATIC_LIBS ON)
+endif()
 
 find_package(Boost COMPONENTS regex log_setup log python39)
 #find_package(OpenSSL REQUIRED)
@@ -60,9 +63,15 @@ list(APPEND source python.cpp)
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
 	list(APPEND source screen_linux.h)
 	list(APPEND source screen_linux.cpp)
+		add_definitions(-DLINUX)
+	#linux上打包去掉开头的lib
+	set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
 	list(APPEND source screen_win.h)
 	list(APPEND source screen_win.cpp)
+	add_definitions(-DWIN)
+	# 设置win上打包的后缀名
+	set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".pyd")
 endif()
 
 # 打包成exe
