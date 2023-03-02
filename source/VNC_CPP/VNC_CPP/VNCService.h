@@ -1,3 +1,4 @@
+#include <iostream>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -5,6 +6,13 @@
 #include <boost/format.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/asio.hpp>
+#include <iostream>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+//zlib压缩
+//#include "zlib/include/zlib.h"
+
 // des加密
 #include <des.h>
 #include <cryptlib.h>
@@ -18,7 +26,9 @@
 
 // 图像处理和键鼠处理
 #ifdef WIN
+
 #include "screen_win.h"
+
 #endif
 #ifdef LINUX
 #include "screen_linux.h"
@@ -30,6 +40,24 @@
  */
 class VNCService {
 public:
+
+    /**
+     * 图像的编码格式
+     */
+    enum Encodings : S32 {
+        Raw = 0,
+        CopyRect = 1,
+        REF = 2,
+        CoREF = 4,
+        Hextile = 5,
+        zlib = 6,
+        Tight = 7,
+        zlibhex = 8,
+        ZRLE = 16,
+        JPEG = 21,
+        OpenH264 = 50,
+        TightPNG = -260
+    };
 
     /**
      * 构造函数
@@ -57,6 +85,10 @@ public:
      * password 连接服务使用的密码
      */
     void start(int port, const char *password);
+
+    static std::string compress(const std::string &data);
+
+    static std::string decompress(const std::string &cipher_text);
 
 private:
     /**
@@ -101,8 +133,7 @@ private:
     void framebufferUpdateRequest(boost::asio::ip::tcp::socket &socket);
 
     /**/
-    void framebufferUpdate(boost::asio::ip::tcp::socket &socket, unsigned short xPosition, unsigned short yPosition,
-                           unsigned short width, unsigned short height);
+    void framebufferUpdate(boost::asio::ip::tcp::socket &socket, U16 xPosition, U16 yPosition, U16 width, U16 height);
 
     /**/
     void keyEvent(boost::asio::ip::tcp::socket &socket);
@@ -112,16 +143,17 @@ private:
 
     /**/
     void clientCutText(boost::asio::ip::tcp::socket &socket);
-};
 
-//extern "C"
-//{
-//VNCService service;
-//void start(int port, const char *password) {
-//    service.start(port, password);
-//}
-//
-//void startRepeater(const char *id, const char *host, int port, const char *password) {
-//    service.startRepeater(id, host, port, password);
-//}
-//}
+    /**
+     * raw格式编码
+     */
+    void RawEncoding();
+
+    /**
+     * zilb格式编码
+     * buffer raw格式的原始数据
+     * output 压缩后的数据
+     * return 压缩后数据的字节数
+     */
+    int zlibEncoding(unsigned char *frameData, int size, char *&output);
+};

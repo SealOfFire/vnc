@@ -20,6 +20,13 @@ variant=release address-model=64 link=static,shared
 
 .\b2 install --prefix="D:\Program Files\boost"
 
+多个版本的python打包
+.\bootstrap.bat --with-python=D:/ProgramData/Anaconda3/envs/DeepAIEnviroment32  
+.\b2 install --prefix="D:\Program Files\boost" --with-python  
+
+boost 添加zlib
+.\b2 install --prefix="D:\Program Files\boost" --with-iostreams -sZLIB_SOURCE="D:\Program Files\zlib-1.2.13"
+
 https://blog.csdn.net/qq_36163982/article/details/122438593  
 
 linux 安装boost  
@@ -33,3 +40,6 @@ Ubuntu 在登录界面，点击设置按钮Ubuntu on Xorg上运行才能使用�
 x11/extensions  
 sudo apt-get install libxtst-dev  
 sudo apt-get install libxext-dev  
+
+安装zlib
+sudo apt-get install zlib1g-dev
