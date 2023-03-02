@@ -22,3 +22,9 @@
 /source/VNC_CPP/VNC_CPP/cmake-build-debug
 /source/VNC_CPP/VNC_CPP/cmake-build-debug-visual-studio
 /source/VNC_CPP/VNC_CPP/cmake-build-release-visual-studio
+/source/VNC_CPP/VNC_CPP/cmake-build-debug-visual-studio-x86
+/source/VNC_CPP/out/build
+/source/VNC_CPP/VNC_CPP/cmake-build-debug-visual-studio-x86_amd64
+/source/VNC_CPP/VNC_CPP/cmake-build-release-visual-studio-x86
+/source/VNC_CPP/VNC_CPP/cmake-build-release-visual-studio-x86_amd64
+/source/VNC_CPP/VNC_CPP/zlib
