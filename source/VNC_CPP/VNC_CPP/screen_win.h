@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include <WinUser.h>
 #include <map>
+//#include "logger.h"
 
 //HDC hScreenDC = GetDC(nullptr); // CreateDC("DISPLAY",nullptr,nullptr,nullptr);
 //HDC hMemoryDC = CreateCompatibleDC(hScreenDC);

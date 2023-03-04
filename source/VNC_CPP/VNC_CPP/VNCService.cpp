@@ -1,5 +1,39 @@
 #include "template.hpp"
 #include "VNCService.h"
+#include "PixelFormat.h"
+
+#include <iostream>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
+
+// 日志
+#include <boost/log/trivial.hpp>
+
+// 多线程处理
+#include <boost/thread/thread.hpp>
+
+// 压缩io流
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+
+//zlib压缩
+#include "zlib/include/zconf.h"
+#include "zlib/include/zlib.h"
+
+// des加密
+#include <des.h>
+#include <cryptlib.h>
+#include <modes.h>
+#include <filters.h>
+
+
 
 /**
  * 构造函数
@@ -11,6 +45,7 @@ VNCService::VNCService() {}
  * 释放截图处理和键鼠操作使用的资源
  */
 VNCService::~VNCService() {
+    delete[] this->encodings;
 }
 
 /*
@@ -18,7 +53,7 @@ VNCService::~VNCService() {
  * port 接听的端口
  * password 连接服务使用的密码
  */
-void VNCService::start(int port, const char *password) {
+void VNCService::start(int port, const char* password) {
     //BOOST_LOG_TRIVIAL(trace) << "启动vnc服务";
     //BOOST_LOG_TRIVIAL(debug) << "启动vnc服务";
     BOOST_LOG_TRIVIAL(info) << "启动vnc服务";
@@ -39,7 +74,7 @@ void VNCService::start(int port, const char *password) {
  * port 接听的端口
  * password 连接服务使用的密码
  */
-void VNCService::startRepeater(const char *id, const char *host, int port, const char *password) {
+void VNCService::startRepeater(const char* id, const char* host, int port, const char* password) {
     BOOST_LOG_TRIVIAL(info) << "启动vnc服务，连接到中继";
 
     // 查找host的ip地址
@@ -55,10 +90,10 @@ void VNCService::startRepeater(const char *id, const char *host, int port, const
 /*
  * 找到域名对应的地址
  */
-bool VNCService::findEndpoint(boost::asio::io_context &io_context,
-                              const char *host,
-                              int port,
-                              boost::asio::ip::tcp::endpoint &endpoint) {
+bool VNCService::findEndpoint(boost::asio::io_context& io_context,
+    const char* host,
+    int port,
+    boost::asio::ip::tcp::endpoint& endpoint) {
     boost::asio::ip::tcp::resolver ioResolver(io_context);
     //tcp::resolver::query ioQuery(boost::asio::ip::tcp::v4(), host, "https");
     boost::asio::ip::tcp::resolver::query ioQuery(host, boost::lexical_cast<std::string>(port));
@@ -91,10 +126,10 @@ bool VNCService::findEndpoint(boost::asio::io_context &io_context,
  * socket 初始化设置
  */
 void VNCService::initSocket(
-        boost::asio::io_context &io_context,
-        boost::asio::ip::tcp::endpoint &endpoint,
-        const char *password,
-        const char *id) {
+    boost::asio::io_context& io_context,
+    boost::asio::ip::tcp::endpoint& endpoint,
+    const char* password,
+    const char* id) {
     int count = 0; // 重新连接的次数
     while (true) {
         BOOST_LOG_TRIVIAL(info) << "重连次数" << count;
@@ -112,7 +147,8 @@ void VNCService::initSocket(
                 this->security(socket, password);
                 this->initialisationMessages(socket);
                 this->serviceMessageLoop(socket, 10000);
-            } else {
+            }
+            else {
                 boost::asio::ip::tcp::socket socket(io_context);
                 BOOST_LOG_TRIVIAL(info) << "启动vnc服务，连接到中继" << endpoint.address();
                 socket.connect(endpoint);
@@ -128,10 +164,10 @@ void VNCService::initSocket(
 
             //delete socket;
         }
-        catch (const std::exception &e) {
+        catch (const std::exception& e) {
             BOOST_LOG_TRIVIAL(error) << "Exception:" << e.what();
         }
-        catch (const char *err) {
+        catch (const char* err) {
             BOOST_LOG_TRIVIAL(error) << "Exception:" << err;
         }
     }
@@ -140,10 +176,10 @@ void VNCService::initSocket(
 /*
  * id注册到中继器
  */
-void VNCService::writeRepeaterID(boost::asio::ip::tcp::socket &socket, const char *id) {
+void VNCService::writeRepeaterID(boost::asio::ip::tcp::socket& socket, const char* id) {
     BOOST_LOG_TRIVIAL(info) << "服务器信息:服务器->中继器==id:[" << id << "]";
     std::string s = str(boost::format("ID:%s") % id);
-    char data[250] = {'\0'};
+    char data[250] = { '\0' };
     memcpy(data, s.c_str(), sizeof(s.c_str()));
     boost::asio::write(socket, boost::asio::buffer(data, 250));
 }
@@ -151,14 +187,14 @@ void VNCService::writeRepeaterID(boost::asio::ip::tcp::socket &socket, const cha
 /**
  *
  */
-void VNCService::protocolVersion(boost::asio::ip::tcp::socket &socket) {
+void VNCService::protocolVersion(boost::asio::ip::tcp::socket& socket) {
     unsigned char version[] = "RFB 003.008\n";
     BOOST_LOG_TRIVIAL(info) << "版本号:服务器->客户端";
     // 发送版本号
     boost::asio::write(socket, boost::asio::buffer(version, 12));
 
     // 接受版本号
-    char data[12] = {0};
+    char data[12] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(data), ec);
     BOOST_LOG_TRIVIAL(info) << "版本号:客户端->服务器==:[" << data << "]";
@@ -167,7 +203,7 @@ void VNCService::protocolVersion(boost::asio::ip::tcp::socket &socket) {
 /**
  *
  */
-void VNCService::security(boost::asio::ip::tcp::socket &socket, const char *password) {
+void VNCService::security(boost::asio::ip::tcp::socket& socket, const char* password) {
     // 发送安全协议
     BOOST_LOG_TRIVIAL(info) << "安全协议:服务器->客户端==列表";
     // 第一个char是列表数量
@@ -181,10 +217,10 @@ void VNCService::security(boost::asio::ip::tcp::socket &socket, const char *pass
     boost::asio::write(socket, boost::asio::buffer(securityTypes, 12));
 
     // 读取客户端的选择的协议
-    BYTE data[1] = {0};
+    BYTE data[1] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(data), ec);
-    BOOST_LOG_TRIVIAL(info) << "安全协议:客户端->服务器==种类:[" << (int) data[0] << "]";
+    BOOST_LOG_TRIVIAL(info) << "安全协议:客户端->服务器==种类:[" << (int)data[0] << "]";
 
     if (data[0] == 2) {
         // VNC Authentication
@@ -192,25 +228,25 @@ void VNCService::security(boost::asio::ip::tcp::socket &socket, const char *pass
         boost::uuids::random_generator gen;
         boost::uuids::uuid id = gen();
         int i = 0;
-        for (char item: id.data) {
-            BOOST_LOG_TRIVIAL(debug) << "安全协议:服务器->客户端==Challenge " << i << ":[" << (int) item << "]";
+        for (char item : id.data) {
+            BOOST_LOG_TRIVIAL(debug) << "安全协议:服务器->客户端==Challenge " << i << ":[" << (int)item << "]";
             i++;
         }
         boost::asio::write(socket, boost::asio::buffer(id.data, 16));
 
 
         // 接收客户端密码，客户端密码用发送的challenge进行des加密
-        char data[16] = {0};
+        char data[16] = { 0 };
         size_t length = socket.read_some(boost::asio::buffer(data), ec);
         BOOST_LOG_TRIVIAL(info) << "安全协议:客户端->服务器==密码";
         i = 0;
-        for (char item: data) {
-            BOOST_LOG_TRIVIAL(debug) << "安全协议:客户端->服务器==密码 " << i << ":[" << (int) item << "]";
+        for (char item : data) {
+            BOOST_LOG_TRIVIAL(debug) << "安全协议:客户端->服务器==密码 " << i << ":[" << (int)item << "]";
             i++;
         }
 
         // 本地密码加密后和客户端发送的密码对比
-        BYTE key[8] = {0};
+        BYTE key[8] = { 0 };
         for (int i = 0; i < 8; i++) {
             //cout << std::strlen(password);
             if (i < std::strlen(password)) {
@@ -235,21 +271,22 @@ void VNCService::security(boost::asio::ip::tcp::socket &socket, const char *pass
             CryptoPP::ECB_Mode<CryptoPP::DES>::Encryption e;
             e.SetKey(key, CryptoPP::DES::DEFAULT_KEYLENGTH);
             CryptoPP::StringSource(content, true,
-                                   new CryptoPP::StreamTransformationFilter(e, new CryptoPP::StringSink(cipher)));
+                new CryptoPP::StreamTransformationFilter(e, new CryptoPP::StringSink(cipher)));
         }
-        catch (const CryptoPP::Exception &e) {
+        catch (const CryptoPP::Exception& e) {
             std::cerr << e.what() << std::endl;
         }
 
-        unsigned int securityResult[1] = {0};
+        unsigned int securityResult[1] = { 0 };
         for (int i = 0; i < 16; i++) {
             if (data[i] != cipher[i]) {
                 // 密码错误
                 BOOST_LOG_TRIVIAL(warning) << "安全协议:客户端->服务器==密码错误";
                 securityResult[0] = 1;
                 break;
-            } else {
-                BOOST_LOG_TRIVIAL(debug) << "安全协议:客户端->服务器==密码正确:[" << (int) cipher[i] << "]";
+            }
+            else {
+                BOOST_LOG_TRIVIAL(debug) << "安全协议:客户端->服务器==密码正确:[" << (int)cipher[i] << "]";
             }
         }
 
@@ -260,15 +297,15 @@ void VNCService::security(boost::asio::ip::tcp::socket &socket, const char *pass
 }
 
 /**
- * 
+ *
  */
-void VNCService::initialisationMessages(boost::asio::ip::tcp::socket &socket) {
+void VNCService::initialisationMessages(boost::asio::ip::tcp::socket& socket) {
     BOOST_LOG_TRIVIAL(info) << "初始化:客户端->服务器";
     // 接收clientInit
-    BYTE sharedFlag[1] = {0};
+    BYTE sharedFlag[1] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(sharedFlag), ec);
-    BOOST_LOG_TRIVIAL(debug) << "初始化:客户端->服务器==shared flag:[" << (int) sharedFlag[0] << "]";
+    BOOST_LOG_TRIVIAL(debug) << "初始化:客户端->服务器==shared flag:[" << (int)sharedFlag[0] << "]";
 
     // 发送serverInit
     BOOST_LOG_TRIVIAL(info) << "初始化:服务器->客户端";
@@ -279,7 +316,7 @@ void VNCService::initialisationMessages(boost::asio::ip::tcp::socket &socket) {
     CopyToArray<U16>(framebufferWidth, buffer, 0);
     CopyToArray<U16>(framebufferHeight, buffer, 2);
     PixelFormat pf;
-    BYTE bufferPF[16] = {0};
+    BYTE bufferPF[16] = { 0 };
     pixelFormatToBuffer(pf, bufferPF);
     memcpy(buffer + 4, bufferPF, 16);
     std::string name = "test nvc service";
@@ -295,11 +332,11 @@ void VNCService::initialisationMessages(boost::asio::ip::tcp::socket &socket) {
 /**
  *
  */
-void VNCService::serviceMessageLoop(boost::asio::ip::tcp::socket &socket, int timeout) {
+void VNCService::serviceMessageLoop(boost::asio::ip::tcp::socket& socket, int timeout) {
     BOOST_LOG_TRIVIAL(info) << "客户端发送的消息循环:客户端->服务器";
 
     boost::system::error_code ec;
-    char type[1] = {-1};
+    char type[1] = { -1 };
 
     boost::posix_time::ptime time_begin, time_end;
     boost::posix_time::millisec_posix_time_system_config::time_duration_type time_elapse;
@@ -307,32 +344,33 @@ void VNCService::serviceMessageLoop(boost::asio::ip::tcp::socket &socket, int ti
         size_t length = socket.read_some(boost::asio::buffer(type), ec);
         if (length > 0) {
             time_begin = boost::posix_time::second_clock::universal_time();
-            BOOST_LOG_TRIVIAL(debug) << "客户端发送的消息循环:客户端->服务器:[" << (int) type[0] << "],length:["
-                                     << length << "]";
+            BOOST_LOG_TRIVIAL(debug) << "客户端发送的消息循环:客户端->服务器:[" << (int)type[0] << "],length:["
+                << length << "]";
             switch (type[0]) {
-                case 0:
-                    this->setPixelFormat(socket);
-                    break;
-                case 2:
-                    this->setEncodings(socket);
-                    break;
-                case 3:
-                    this->framebufferUpdateRequest(socket);
-                    break;
-                case 4:
-                    this->keyEvent(socket);
-                    break;
-                case 5:
-                    this->pointerEvent(socket);
-                    break;
-                case 6:
-                    this->clientCutText(socket);
-                    break;
-                default:
-                    BOOST_LOG_TRIVIAL(warning) << "未接入的客户端消息处理:客户端->服务器:[" << (int) type[0] << "]";
-                    break;
+            case MessageType_SetPixelFormat:
+                this->setPixelFormat(socket);
+                break;
+            case MessageType_SetEncodings:
+                this->setEncodings(socket);
+                break;
+            case MessageType_FramebufferUpdateRequest:
+                this->framebufferUpdateRequest(socket);
+                break;
+            case MessageType_KeyEvent:
+                this->keyEvent(socket);
+                break;
+            case MessageType_PointerEvent:
+                this->pointerEvent(socket);
+                break;
+            case MessageType_ClientCutText:
+                this->clientCutText(socket);
+                break;
+            default:
+                BOOST_LOG_TRIVIAL(warning) << "未接入的客户端消息处理:客户端->服务器:[" << (int)type[0] << "]";
+                break;
             }
-        } else {
+        }
+        else {
             // 没有数据,计算超时
             time_end = boost::posix_time::second_clock::universal_time();
             time_elapse = time_end - time_begin;
@@ -340,7 +378,7 @@ void VNCService::serviceMessageLoop(boost::asio::ip::tcp::socket &socket, int ti
                 //timer.stop();
                 // timer.start();
                 BOOST_LOG_TRIVIAL(warning) << "长时间没有输入连接:客户端->服务器:[" << time_elapse.total_seconds()
-                                           << "]秒";
+                    << "]秒";
                 throw ("长时间没有接入信息。重新连接");
             }
         }
@@ -350,19 +388,19 @@ void VNCService::serviceMessageLoop(boost::asio::ip::tcp::socket &socket, int ti
 /**
  *
  */
-void VNCService::setPixelFormat(boost::asio::ip::tcp::socket &socket) {
+void VNCService::setPixelFormat(boost::asio::ip::tcp::socket& socket) {
     BOOST_LOG_TRIVIAL(info) << "SetPixelFormat";
 
-    unsigned char data[19] = {0};
+    unsigned char data[19] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(data), ec);
     int i = 0;
 
-    BYTE padding[3] = {0};
+    BYTE padding[3] = { 0 };
     for (int i = 0; i < 3; i++) {
         padding[i] = data[i];
         BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->padding " << i << ":["
-                                 << (int) data[i] << "]";
+            << (int)data[i] << "]";
     }
     BYTE bitsPerPixel = data[3];
     BYTE depth = data[4];
@@ -374,39 +412,42 @@ void VNCService::setPixelFormat(boost::asio::ip::tcp::socket &socket) {
     BYTE redShift = data[13];
     BYTE greenShift = data[14];
     BYTE blueShift = data[15];
-    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->bits-per-pixel:[" << (int) bitsPerPixel
-                             << "]";
-    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->depth:[" << (int) depth << "]";
-    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->big-endian-flag:[" << (int) bigEndianFlag
-                             << "]";
+    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->bits-per-pixel:[" << (int)bitsPerPixel
+        << "]";
+    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->depth:[" << (int)depth << "]";
+    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->big-endian-flag:[" << (int)bigEndianFlag
+        << "]";
     BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->true-colour-flag:["
-                             << (int) trueColourFlag << "]";
+        << (int)trueColourFlag << "]";
     BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->red-max:[" << redMax << "]";
     BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->green-max:[" << greenMax << "]";
     BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->blue-max:[" << blueMax << "]";
-    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->red-shift:[" << (int) redShift << "]";
-    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->green-shift:[" << (int) greenShift << "]";
-    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->blue-shift:[" << (int) blueShift << "]";
+    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->red-shift:[" << (int)redShift << "]";
+    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->green-shift:[" << (int)greenShift << "]";
+    BOOST_LOG_TRIVIAL(debug) << "SetPixelFormat:客户端->服务器==pixel-format->blue-shift:[" << (int)blueShift << "]";
 }
 
 /**
  *
  */
-void VNCService::setEncodings(boost::asio::ip::tcp::socket &socket) {
+void VNCService::setEncodings(boost::asio::ip::tcp::socket& socket) {
     BOOST_LOG_TRIVIAL(info) << "SetEncodings";
 
-    BYTE data[3] = {0};
+    BYTE data[3] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(data), ec);
-    BOOST_LOG_TRIVIAL(debug) << "SetEncodings:客户端->服务器==padding:[" << (int) data[0] << "]";
+    BOOST_LOG_TRIVIAL(debug) << "SetEncodings:客户端->服务器==padding:[" << (int)data[0] << "]";
 
     U16 numberOfEncodings = ArrayToValue<U16>(data, 1);
     BOOST_LOG_TRIVIAL(debug) << "SetEncodings:客户端->服务器==number-of-encodings:[" << numberOfEncodings << "]";
 
+    this->encodings = new S32[numberOfEncodings];
+
     for (int i = 0; i < numberOfEncodings; i++) {
-        BYTE buffer[4] = {0};
+        BYTE buffer[4] = { 0 };
         length = socket.read_some(boost::asio::buffer(buffer), ec);
         S32 value = ArrayToValue<S32>(buffer, 0);
+        this->encodings[i] = value;
         BOOST_LOG_TRIVIAL(debug) << "SetEncodings:客户端->服务器==encoding-type " << i << ":[" << value << "]";
     }
 }
@@ -414,10 +455,10 @@ void VNCService::setEncodings(boost::asio::ip::tcp::socket &socket) {
 /**
  *
  */
-void VNCService::framebufferUpdateRequest(boost::asio::ip::tcp::socket &socket) {
+void VNCService::framebufferUpdateRequest(boost::asio::ip::tcp::socket& socket) {
     BOOST_LOG_TRIVIAL(info) << "FramebufferUpdateRequest";
 
-    BYTE data[9] = {0};
+    BYTE data[9] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(data), ec);
 
@@ -427,33 +468,44 @@ void VNCService::framebufferUpdateRequest(boost::asio::ip::tcp::socket &socket) 
     U16 width = ArrayToValue<U16>(data, 5);
     U16 height = ArrayToValue<U16>(data, 7);
 
-    BOOST_LOG_TRIVIAL(debug) << "incremental:[" << (int) incremental << "]";
+    BOOST_LOG_TRIVIAL(debug) << "incremental:[" << (int)incremental << "]";
     BOOST_LOG_TRIVIAL(debug) << "x-position:[" << xPosition << "]";
     BOOST_LOG_TRIVIAL(debug) << "x-position:[" << yPosition << "]";
     BOOST_LOG_TRIVIAL(debug) << "width:[" << width << "]";
     BOOST_LOG_TRIVIAL(debug) << "height:[" << height << "]";
 
-    this->framebufferUpdate(socket, xPosition, yPosition, width, height);
+    if (incremental == 0)
+    {
+        // 立刻发送指定区域
+        this->framebufferUpdate(socket, xPosition, yPosition, width, height);
+    }
+    else
+    {
+        // 服务器自行判断是否需要发送新的区域
+        this->framebufferUpdate(socket, xPosition, yPosition, width, height);
+    }
 }
 
 /**
  *
  */
-void VNCService::framebufferUpdate(boost::asio::ip::tcp::socket &socket,
-                                   U16 xPosition, U16 yPosition,
-                                   U16 width, U16 height) {
+void VNCService::framebufferUpdate(boost::asio::ip::tcp::socket& socket,
+    U16 xPosition, U16 yPosition,
+    U16 width, U16 height) {
     BOOST_LOG_TRIVIAL(info) << "framebufferUpdate:服务器->客户端";
 
     // 图片的容量
     int frameSize = width * height * (32 / 8);
-    unsigned char *frameData = new unsigned char[frameSize];
+    unsigned char* frameData = new unsigned char[frameSize];
     BOOST_LOG_TRIVIAL(debug) << "framebufferUpdate:服务器->客户端:frameSize[" << frameSize << "]";
 
+    BOOST_LOG_TRIVIAL(trace) << "framebufferUpdate:服务器->客户端:截屏开始";
     // 屏幕图像处理
     ScreenShort(xPosition, yPosition, width, height, frameData);
+    BOOST_LOG_TRIVIAL(trace) << "framebufferUpdate:服务器->客户端:截屏结束";
 
-    BYTE buffer[4] = {0};
-    buffer[0] = 0; // message-type
+    BYTE buffer[4] = { 0 };
+    buffer[0] = MessageType_FramebufferUpdate; // message-type
     buffer[1] = 0; //padding
     U16 numberOfRectangles = 1;
     CopyToArray<U16>(numberOfRectangles, buffer, 2);
@@ -462,8 +514,11 @@ void VNCService::framebufferUpdate(boost::asio::ip::tcp::socket &socket,
     //unsigned short yPosition = yPosition;
     //unsigned short width = width;
     //unsigned short height = height;
+
+    // TODO 根据客户端的处理能力设置编码格式
     S32 encodingType = Raw; // RAW编码
-    BYTE bufferRectangle[12] = {0};
+    //S32 encodingType = zlib; // zlib编码
+    BYTE bufferRectangle[12] = { 0 };
     CopyToArray<U16>(xPosition, bufferRectangle, 0);
     CopyToArray<U16>(yPosition, bufferRectangle, 2);
     CopyToArray<U16>(width, bufferRectangle, 4);
@@ -471,30 +526,85 @@ void VNCService::framebufferUpdate(boost::asio::ip::tcp::socket &socket,
     CopyToArray<S32>(encodingType, bufferRectangle, 8);
 
     // zlib模式
-    //char *output = 0;
-    //int length = this->zlibEncoding(frameData, frameSize, output);
+    //char * output = 0;
+    //int len = this->zlibEncoding(frameData, frameSize, output);
+    //BYTE length[4];
+    //CopyToArray<S32>(len, length, 0);
+    //U8 *zlibData = new U8[len];
+    //memcpy(zlibData, &output, len);
 
+    //// zilib压缩
+    //std::vector<char> compressed;
+    //compressed.insert(compressed.end(), frameData, frameData + frameSize);
+    //std::vector<char> decompressed;
+    //boost::iostreams::filtering_ostream os;
+    //os.push(boost::iostreams::zlib_compressor());
+    //os.push(boost::iostreams::back_inserter(decompressed));
+    //boost::iostreams::write(os, &compressed[0], compressed.size());
+    //char* charB = &compressed[0];
+    //int len2 = decompressed.size();
+
+    //boost::iostreams::filtering_streambuf<boost::iostreams::output> output_stream;
+    //output_stream.push(boost::iostreams::zlib_compressor());
+    //std::stringstream string_stream;
+    //output_stream.push(string_stream);
+    //boost::iostreams::basic_array_source<char> source((char*)frameData, frameSize + 1);
+    //boost::iostreams::copy(source, output_stream);
+    //std::string value = string_stream.str();
+    //int len = value.size();
+    //char* zlibData = value.data();
+    ///*BYTE length[4];
+    //CopyToArray<S32>(len2, length, 0);*/
+
+    //char* output;
+    //int len5 = this->zlibEncoding(frameData, frameSize, output);
+
+    BYTE length[4];
+    CopyToArray<U32>(frameSize, length, 0);
+
+    // zlib库压缩帧数据
+    BYTE* zFramData = 0;
+    U32 zFrameSize = 0;
+    if (encodingType == zlib) {
+        VNCService::compressFrameData(frameData, frameSize, zFramData, &zFrameSize);
+        CopyToArray<U32>(zFrameSize, length, 0);
+    }
+
+
+    BOOST_LOG_TRIVIAL(trace) << "framebufferUpdate:服务器->客户端:发送数据";
     //
     boost::asio::write(socket, boost::asio::buffer(buffer, 4));
     for (int i = 0; i < numberOfRectangles; i++) {
         // 格式说明
         boost::asio::write(socket, boost::asio::buffer(bufferRectangle, 12));
-        // 帧数据
-        boost::asio::write(socket, boost::asio::buffer(frameData, frameSize));
-        //boost::asio::write(socket, boost::asio::buffer(output, length));
+
+        if (encodingType == Raw) {
+            // RAW格式发送
+            // 帧数据
+            boost::asio::write(socket, boost::asio::buffer(frameData, frameSize));
+        }
+        else if (encodingType == zlib) {
+            // zilib格式发送
+            boost::asio::write(socket, boost::asio::buffer(length, 4)); // 长度
+            boost::asio::write(socket, boost::asio::buffer(zFramData, zFrameSize)); // 数据
+        }
     }
 
     delete[] frameData;
+    //delete[] zlibData;
     //delete[] output;
+    //delete[] zFramData;
+    delete[] zFramData;
+    BOOST_LOG_TRIVIAL(trace) << "framebufferUpdate:服务器->客户端:处理结束";
 }
 
 /**
  *
  */
-void VNCService::keyEvent(boost::asio::ip::tcp::socket &socket) {
+void VNCService::keyEvent(boost::asio::ip::tcp::socket& socket) {
     BOOST_LOG_TRIVIAL(info) << "KeyEvent";
 
-    BYTE data[7] = {0};
+    BYTE data[7] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(data), ec);
 
@@ -502,7 +612,7 @@ void VNCService::keyEvent(boost::asio::ip::tcp::socket &socket) {
     unsigned short padding = ArrayToValue<unsigned short>(data, 1);
     U32 key = ArrayToValue<U32>(data, 3);
 
-    BOOST_LOG_TRIVIAL(debug) << "down-flag:[" << (int) downFlag << "]";
+    BOOST_LOG_TRIVIAL(debug) << "down-flag:[" << (int)downFlag << "]";
     BOOST_LOG_TRIVIAL(debug) << "padding:[" << padding << "]";
     BOOST_LOG_TRIVIAL(debug) << "key:[" << key << "]";
 
@@ -513,10 +623,10 @@ void VNCService::keyEvent(boost::asio::ip::tcp::socket &socket) {
 /**
  *
  */
-void VNCService::pointerEvent(boost::asio::ip::tcp::socket &socket) {
+void VNCService::pointerEvent(boost::asio::ip::tcp::socket& socket) {
     BOOST_LOG_TRIVIAL(info) << "PointerEvent";
 
-    BYTE data[5] = {0};
+    BYTE data[5] = { 0 };
     boost::system::error_code ec;
     size_t length = socket.read_some(boost::asio::buffer(data), ec);
 
@@ -524,7 +634,7 @@ void VNCService::pointerEvent(boost::asio::ip::tcp::socket &socket) {
     U16 xPosition = ArrayToValue<U16>(data, 1);
     U16 yPosition = ArrayToValue<U16>(data, 3);
 
-    BOOST_LOG_TRIVIAL(debug) << "button-mask:[" << (int) buttonMask << "]";
+    BOOST_LOG_TRIVIAL(debug) << "button-mask:[" << (int)buttonMask << "]";
     // 蒙板转成bit数组
     int buttons[8] = {
             (buttonMask & 0x01) >> 0,
@@ -537,20 +647,22 @@ void VNCService::pointerEvent(boost::asio::ip::tcp::socket &socket) {
             (buttonMask & 0x80) >> 7
     };
     int i = 0;
-    for (bool v: buttons) {
+    for (bool v : buttons) {
         BOOST_LOG_TRIVIAL(debug) << "button-mask " << i << ":[" << v << "]";
         i++;
     }
     BOOST_LOG_TRIVIAL(debug) << "x-position:[" << xPosition << "]";
     BOOST_LOG_TRIVIAL(debug) << "y-position:[" << yPosition << "]";
 
-    pointerHandle(buttons, xPosition, yPosition);
+    // 键鼠处理放到子线程执行
+    boost::thread thrd(pointerHandle, buttons, xPosition, yPosition);
+    //pointerHandle(buttons, xPosition, yPosition);
 }
 
 /**
  *
  */
-void VNCService::clientCutText(boost::asio::ip::tcp::socket &socket) {
+void VNCService::clientCutText(boost::asio::ip::tcp::socket& socket) {
     BOOST_LOG_TRIVIAL(info) << "ClientCutText";
 }
 
@@ -565,7 +677,7 @@ void VNCService::RawEncoding() {
 /**
  * zlib编码
  */
-int VNCService::zlibEncoding(unsigned char *frameData, int size, char *&output) {
+int VNCService::zlibEncoding(unsigned char* frameData, int size, char*& output) {
     BOOST_LOG_TRIVIAL(debug) << "zlibEncoding";
 
     boost::iostreams::filtering_streambuf<boost::iostreams::output> output_stream;
@@ -573,7 +685,7 @@ int VNCService::zlibEncoding(unsigned char *frameData, int size, char *&output) 
     std::stringstream string_stream;
     output_stream.push(string_stream);
     //boost::iostreams::copy(boost::iostreams::basic_array_source<char>(data.c_str(), data.size()), output_stream);
-    boost::iostreams::basic_array_source<char> source((char *) frameData, size);
+    boost::iostreams::basic_array_source<char> source((char*)frameData, size);
     //boost::iostreams::basic_array_source<unsigned char> source(frameData, size);
     boost::iostreams::copy(source, output_stream);
 
@@ -581,22 +693,59 @@ int VNCService::zlibEncoding(unsigned char *frameData, int size, char *&output) 
     //int length = value.size();
     output = value.data();
     //const char* result = value.data();
-    //std::string value2 = VNCService::decompress(value);
+    std::string value2 = VNCService::decompress2(value);
+    size_t len = value2.size();
 
     return value.size();
 }
 
-std::string VNCService::compress(const std::string &data) {
+/**
+ * 压缩帧数据
+ * source 元数据
+ * sourceLength 元数据的长度
+ * compressData 压缩后数据
+ * compressLength 压缩后数据长度
+ */
+void VNCService::compressFrameData(BYTE* source, U32 sourceLength, BYTE*& compressData, U32* compressLength) {
+    BOOST_LOG_TRIVIAL(debug) << "zlib压缩帧数据--开始";
+    BOOST_LOG_TRIVIAL(debug) << "zlib压缩帧数据--压缩前:[" << sourceLength << "]";
+
+    uLong sourceLen = sourceLength + 1;
+    // uLongf destLen = compressBound(sourceLen); // 压缩后数据长度
+    *compressLength = compressBound(sourceLen);// 压缩后数据长度
+    // compressLength = 
+    compressData = new Byte[*compressLength]{ 0 }; // 压缩后的数据;
+    //uLong source
+    int err = compress(compressData, (uLongf*)compressLength, (const Bytef*)source, sourceLen);
+    if (err != Z_OK)
+    {
+        BOOST_LOG_TRIVIAL(fatal) << "压缩帧数据失败";
+    }
+
+    //U32 a = (U32)destLen;
+    //sourceLength = &a;
+
+    // 解压测试
+    //uLong len4 = frameSize + 1;
+    //Byte* uncompr = (Byte*)calloc(((uInt)len4), 1);
+    //err = uncompress(uncompr, &len4, zFramData, zFrameSize);
+
+    BOOST_LOG_TRIVIAL(debug) << "zlib压缩帧数据:服务器->客户端:压缩后:[" << *compressLength << "]";
+    BOOST_LOG_TRIVIAL(debug) << "zlib压缩帧数据--结束";
+}
+
+
+std::string VNCService::compress2(const std::string& data) {
     boost::iostreams::filtering_streambuf<boost::iostreams::output> output_stream;
     output_stream.push(boost::iostreams::zlib_compressor());
     std::stringstream string_stream;
     output_stream.push(string_stream);
     boost::iostreams::copy(boost::iostreams::basic_array_source<char>(data.c_str(),
-                                                                      data.size()), output_stream);
+        data.size()), output_stream);
     return string_stream.str();
 }
 
-std::string VNCService::decompress(const std::string &cipher_text) {
+std::string VNCService::decompress2(const std::string& cipher_text) {
     std::stringstream string_stream;
     string_stream << cipher_text;
     boost::iostreams::filtering_streambuf<boost::iostreams::input> input_stream;

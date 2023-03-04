@@ -1,6 +1,7 @@
 // https://learn.microsoft.com/zh-cn/windows/win32/gdi/capturing-an-image
 #pragma once
 
+#include <boost/log/trivial.hpp>
 //#include <wtypes.h>
 //#include <Windows.h>
 //#include <WinUser.h>
@@ -218,6 +219,8 @@ bool mouseButtonPress[8] = { 0 };
  * 鼠标处理
  */
 void pointerHandle(int* button, int x, int y) {
+    BOOST_LOG_TRIVIAL(debug) << "pointerHandle begin";
+
     // 移动鼠标指针
     int result = SetCursorPos(x, y);
 
@@ -264,6 +267,7 @@ void pointerHandle(int* button, int x, int y) {
             }
         }
     }
+    BOOST_LOG_TRIVIAL(debug) << "pointerHandle end";
 }
 
 //std::variant<unsigned int, unsigned char> keyMap;

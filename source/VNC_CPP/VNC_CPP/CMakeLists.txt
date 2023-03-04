@@ -24,7 +24,8 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
 	add_definitions(-DLINUX)
 endif()
 
-find_package(Boost COMPONENTS regex log_setup log iostreams python38)
+set(BOOST_ROOT /home/xus/boost) # 设置boost库的路劲
+find_package(Boost 1.81.0 COMPONENTS regex log_setup log iostreams thread python38)
 message(Boost\ version: ${Boost_VERSION_STRING})
 message(Boost\ include\ dir: ${Boost_INCLUDE_DIRS})
 message(Boost\ library\ dir: ${Boost_LIBRARY_DIRS})
@@ -110,3 +111,16 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
 	#set_target_properties(VNC_CPP PROPERTIES SUFFIX ".pyd")
 endif()
 target_link_libraries(VNC_CPP ${PYTHON_LIBRARIES})
+
+
+# zlib引用
+set(zilib_dll ${PROJECT_SOURCE_DIR}/VNC_CPP/zlib/libs/win_x64/zlibd.dll)
+set(zilib_lib ${PROJECT_SOURCE_DIR}/VNC_CPP/zlib/libs/win_x64/zlibd.lib)
+message(${zilib_dll})
+message(${zilib_lib})
+include_directories(${PROJECT_SOURCE_DIR}/zlib/include)
+target_link_libraries(${PROJECT_NAME} ${zilib_lib})
+# dll文件复制到指定目录
+add_custom_command(TARGET VNC_CPP POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different
+	${zilib_dll} $<TARGET_FILE_DIR:${PROJECT_NAME}>)

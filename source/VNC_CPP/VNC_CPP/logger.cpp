@@ -40,7 +40,7 @@ void initLogger() {
         keywords::file_name = "sample_%N.log", // 日志文件名
         keywords::open_mode = std::ios_base::app, // 日志追加方式
         keywords::rotation_size = 1 * 1024 * 1024, // 日志文件大小，1M
-        keywords::format = "[%TimeStamp%]:<%Severity%> %Message%" // 日志格式
+        keywords::format = "[%TimeStamp%]:[%ThreadID%] <%Severity%> %Message%" // 日志格式
     );
 
     logging::add_common_attributes();

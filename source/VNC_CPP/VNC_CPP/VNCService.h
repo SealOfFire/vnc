@@ -1,28 +1,8 @@
-#include <iostream>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/format.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/asio.hpp>
-#include <iostream>
-#include <boost/iostreams/filtering_streambuf.hpp>
-#include <boost/iostreams/copy.hpp>
-#include <boost/iostreams/filter/zlib.hpp>
-//zlib压缩
-//#include "zlib/include/zlib.h"
-
-// des加密
-#include <des.h>
-#include <cryptlib.h>
-#include <modes.h>
-#include <filters.h>
 // 日志
-#include "logger.h"
+// #include "logger.h"
+#include <boost/asio.hpp>
 
 #include "Common.h"
-#include "PixelFormat.h"
 
 // 图像处理和键鼠处理
 #ifdef WIN
@@ -34,6 +14,15 @@
 #include "screen_linux.h"
 #endif
 
+// 客户端消息
+#define MessageType_SetPixelFormat (U8)0 // 设置显示的像素格式
+#define MessageType_SetEncodings (U8)2 // 客户端支持的帧格式
+#define MessageType_FramebufferUpdateRequest (U8)3 // 请求更新帧
+#define MessageType_KeyEvent (U8)4  // 键盘事件
+#define MessageType_PointerEvent (U8)5 // 鼠标事件
+#define MessageType_ClientCutText (U8)6 // 剪切板数据
+// 服务器消息
+#define MessageType_FramebufferUpdate (U8)0 // 服务器发送帧数据
 
 /**
  * vnc服务处理
@@ -77,72 +66,76 @@ public:
      * port 接听的端口
      * password 连接服务使用的密码
      */
-    void startRepeater(const char *id, const char *host, int port, const char *password);
+    void startRepeater(const char* id, const char* host, int port, const char* password);
 
     /*
      * 启动服务
      * port 接听的端口
      * password 连接服务使用的密码
      */
-    void start(int port, const char *password);
+    void start(int port, const char* password);
 
-    static std::string compress(const std::string &data);
+    static std::string compress2(const std::string& data);
 
-    static std::string decompress(const std::string &cipher_text);
+    static std::string decompress2(const std::string& cipher_text);
 
 private:
+
+    /* 客户端支持的编码格式列表 */
+    S32* encodings;
+
     /**
      * socket 初始化设置
      * isRepeater 是否连接到中继
      * io_context
      * endpoint
      */
-    void initSocket(boost::asio::io_context &io_context, boost::asio::ip::tcp::endpoint &endpoint, const char *password,
-                    const char *id);
+    void initSocket(boost::asio::io_context& io_context, boost::asio::ip::tcp::endpoint& endpoint, const char* password,
+        const char* id);
 
     /*
      * 找到域名对应的地址
      */
-    bool findEndpoint(boost::asio::io_context &io_context, const char *host, int port,
-                      boost::asio::ip::tcp::endpoint &endpoint);
+    bool findEndpoint(boost::asio::io_context& io_context, const char* host, int port,
+        boost::asio::ip::tcp::endpoint& endpoint);
 
     /*
      * id注册到中继器
      */
-    void writeRepeaterID(boost::asio::ip::tcp::socket &socket, const char *id);
+    void writeRepeaterID(boost::asio::ip::tcp::socket& socket, const char* id);
 
     /**/
-    void protocolVersion(boost::asio::ip::tcp::socket &socket);
+    void protocolVersion(boost::asio::ip::tcp::socket& socket);
 
     /**/
-    void security(boost::asio::ip::tcp::socket &socket, const char *password);
+    void security(boost::asio::ip::tcp::socket& socket, const char* password);
 
     /**/
-    void initialisationMessages(boost::asio::ip::tcp::socket &socket);
+    void initialisationMessages(boost::asio::ip::tcp::socket& socket);
 
     /**/
-    void serviceMessageLoop(boost::asio::ip::tcp::socket &socket, int timeout);
+    void serviceMessageLoop(boost::asio::ip::tcp::socket& socket, int timeout);
 
     /**/
-    void setPixelFormat(boost::asio::ip::tcp::socket &socket);
+    void setPixelFormat(boost::asio::ip::tcp::socket& socket);
 
     /**/
-    void setEncodings(boost::asio::ip::tcp::socket &socket);
+    void setEncodings(boost::asio::ip::tcp::socket& socket);
 
     /**/
-    void framebufferUpdateRequest(boost::asio::ip::tcp::socket &socket);
+    void framebufferUpdateRequest(boost::asio::ip::tcp::socket& socket);
 
     /**/
-    void framebufferUpdate(boost::asio::ip::tcp::socket &socket, U16 xPosition, U16 yPosition, U16 width, U16 height);
+    void framebufferUpdate(boost::asio::ip::tcp::socket& socket, U16 xPosition, U16 yPosition, U16 width, U16 height);
 
     /**/
-    void keyEvent(boost::asio::ip::tcp::socket &socket);
+    void keyEvent(boost::asio::ip::tcp::socket& socket);
 
     /**/
-    void pointerEvent(boost::asio::ip::tcp::socket &socket);
+    void pointerEvent(boost::asio::ip::tcp::socket& socket);
 
     /**/
-    void clientCutText(boost::asio::ip::tcp::socket &socket);
+    void clientCutText(boost::asio::ip::tcp::socket& socket);
 
     /**
      * raw格式编码
@@ -155,5 +148,14 @@ private:
      * output 压缩后的数据
      * return 压缩后数据的字节数
      */
-    int zlibEncoding(unsigned char *frameData, int size, char *&output);
+    int zlibEncoding(unsigned char* frameData, int size, char*& output);
+
+    /**
+     * 压缩帧数据
+     * source 元数据
+     * sourceLength 元数据的长度
+     * compressData 压缩后数据
+     * compressLength 压缩后数据长度
+     */
+    static void compressFrameData(BYTE* source, U32 sourceLength, BYTE*& compressData, U32* compressLength);
 };

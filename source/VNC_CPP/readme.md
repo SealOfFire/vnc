@@ -32,6 +32,26 @@ https://blog.csdn.net/qq_36163982/article/details/122438593
 linux 安装boost  
 sudo apt-get install libboost-all-dev  
 
+./bootstrap.sh --help
+手动安装
+./bootstrap.sh --prefix=/home/xus/boost 
+./b2 install --prefix=/home/xus/boost
+安装路径设置到环境变量中  
+
+linux 上boost设置python环境  
+./bootstrap.sh --with-python=/home/xus/anaconda3/envs/env/bin/python --with-python-version=3.8 --with-python-root=/home/xus/anaconda3/envs/env --prefix=/home/xus/boost  
+./bootstrap.sh --with-python-root=/usr/local/python3.8 --prefix=/home/xus/boost  
+./bootstrap.sh --with-python=/usr/local/python3.8/python3
+./bootstrap.sh --with-python=/usr/local/python3.8/python3 --with-python-version=3.8 --with-python-root=/usr/local/python3.8 --prefix=/home/xus/boost  
+./bootstrap.sh --with-python-version=3.8 --prefix=/home/xus/boost  
+
+./bootstrap.sh --with-python=/home/xus/anaconda3/envs/env/bin/python --with-python-version=3.8 --with-python-root=/home/xus/anaconda3/envs/env --prefix=/home/xus/
+./bootstrap.sh --with-python=python3 --with-python-root=/usr/local/python3.8/bin/python3.8 --with-python-version=3.8 --prefix=/home/xus/boost  
+
+./b2 install --prefix=/home/xus/boost  --with-python
+
+https://github.com/lcit/ext3DLBP/issues/2
+
 linux 安装xlib  
 sudo apt-get install libx11-dev  
 Ubuntu 在登录界面，点击设置按钮Ubuntu on Xorg上运行才能使用截图  
